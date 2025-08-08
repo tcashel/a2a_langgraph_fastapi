@@ -16,6 +16,11 @@ load_dotenv()
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
+# Create shared task store for conversation continuity across agents
+SHARED_TASK_STORE = InMemoryTaskStore()
+SHARED_QUEUE_MANAGER = InMemoryQueueManager()
+SHARED_PUSH_CONFIG_STORE = InMemoryPushNotificationConfigStore()
+
 
 def _mount_agent(app: FastAPI, mount_path: str, card_builder, agent_builder) -> str:
     """
@@ -28,9 +33,9 @@ def _mount_agent(app: FastAPI, mount_path: str, card_builder, agent_builder) -> 
 
     handler = DefaultRequestHandler(
         agent_executor=executor,
-        task_store=InMemoryTaskStore(),
-        queue_manager=InMemoryQueueManager(),
-        push_config_store=InMemoryPushNotificationConfigStore(),
+        task_store=SHARED_TASK_STORE,  # Use shared task store
+        queue_manager=SHARED_QUEUE_MANAGER,  # Use shared queue manager
+        push_config_store=SHARED_PUSH_CONFIG_STORE,  # Use shared push config store
     )
 
     starlette_app = A2AFastAPIApplication(agent_card=card, http_handler=handler).build()

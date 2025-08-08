@@ -21,6 +21,71 @@ export OPENAI_API_KEY=sk-...
 uv run serve
 # Server at http://localhost:8000
 ```
+
+## A2A ID Mapping and Conversation Continuity
+
+This implementation properly maps A2A Protocol IDs to LangGraph's conversation system for seamless multi-turn conversations.
+
+### **A2A ID Hierarchy:**
+
+| A2A Protocol | LangGraph Equivalent | Purpose | Persistence |
+|--------------|---------------------|---------|-------------|
+| `contextId` | `thread_id` | **Conversation continuity** | Spans entire conversation |
+| `taskId` | `checkpoint_id` | **Task-specific state** | Individual task lifecycle |
+| `messageId` | N/A | **Unique message identifier** | Single message |
+
+### **Conversation Flow:**
+
+1. **First Message**: Client sends message without IDs
+   ```json
+   {
+     "message": {
+       "role": "user",
+       "parts": [{"kind": "text", "text": "My name is Bob"}],
+       "messageId": "msg-123"
+     }
+   }
+   ```
+
+2. **Server Response**: Server generates and returns both IDs
+   ```json
+   {
+     "contextId": "ctx-conversation-abc",
+     "taskId": "task-123",
+     "message": {...}
+   }
+   ```
+
+3. **Subsequent Messages**: Client uses server-generated `contextId`
+   ```json
+   {
+     "message": {
+       "role": "user", 
+       "parts": [{"kind": "text", "text": "What's my name?"}],
+       "contextId": "ctx-conversation-abc",  // Server-generated
+       "messageId": "msg-456"
+     }
+   }
+   ```
+
+### **Key Benefits:**
+
+- ✅ **True conversation history** across multiple messages
+- ✅ **Server-generated IDs** following A2A Protocol
+- ✅ **Immutable tasks** - each message gets new `taskId`
+- ✅ **Persistent conversations** - same `contextId` throughout
+- ✅ **LangGraph integration** - uses `MemorySaver` for in-memory state
+
+### **Testing Conversation History:**
+
+Run the smoke test to see conversation continuity in action:
+
+```bash
+uv run smoke_test.py
+```
+
+This demonstrates how the agent remembers information shared earlier in the conversation using the same `contextId`.
+
 ## Endpoints
 Platform index (both agents): GET /.well-known/agents.json
 

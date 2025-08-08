@@ -1,4 +1,5 @@
 from typing import Any, AsyncIterator, Optional, Union
+import uuid
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
@@ -52,16 +53,29 @@ class LangGraphAgentExecutor(AgentExecutor):
         """
         await event_queue.enqueue_event(TaskStatusUpdateEvent(status=TaskState.cancelled, final=True))
 
-
     async def _stream_langgraph_messages(
         self,
         user_text: str,
+        task_id: Optional[str] = None,
+        context_id: Optional[str] = None,
     ) -> AsyncIterator[str]:
         """
         Yields assistant message chunks from LangGraph streaming.
         """
+        # Use contextId for conversation continuity (thread_id), taskId for task state (checkpoint_id)
+        thread_id = context_id if context_id else str(uuid.uuid4())
+        checkpoint_id = task_id if task_id else str(uuid.uuid4())
+        
+        config = {
+            "configurable": {
+                "thread_id": thread_id,  # Use contextId for conversation continuity
+                "checkpoint_ns": "a2a_conversation",
+                "checkpoint_id": checkpoint_id  # Use taskId for task-specific state
+            }
+        }
         inputs = {"messages": [("user", user_text)]}
-        async for chunk in self.agent.astream(inputs, stream_mode="messages"):
+        
+        async for chunk in self.agent.astream(inputs, config=config, stream_mode="messages"):
             # `chunk` is usually a BaseMessage with .content (string or list)
             content = getattr(chunk, "content", None)
             if isinstance(content, list):
@@ -81,15 +95,49 @@ class LangGraphAgentExecutor(AgentExecutor):
         except Exception:
             pass
 
+        # Get the A2A context ID and task ID for conversation continuity
+        context_id = None
+        task_id = None
+        
+        # Extract contextId and taskId from the request context
+        if hasattr(context, 'context_id') and context.context_id:
+            context_id = context.context_id
+        elif hasattr(context, 'message') and context.message and hasattr(context.message, 'contextId'):
+            context_id = context.message.contextId
+        
+        if hasattr(context, 'task_id') and context.task_id:
+            task_id = context.task_id
+        elif hasattr(context, 'task') and context.task and hasattr(context.task, 'id'):
+            task_id = context.task.id
+        
+        # Debug: Print ID information
+        print(f"DEBUG: context.context_id = {getattr(context, 'context_id', None)}")
+        print(f"DEBUG: context.task_id = {getattr(context, 'task_id', None)}")
+        print(f"DEBUG: Using context_id = {context_id}, task_id = {task_id}")
+
+        # Use contextId for conversation continuity (thread_id), taskId for task state (checkpoint_id)
+        thread_id = context_id if context_id else str(uuid.uuid4())
+        checkpoint_id = task_id if task_id else str(uuid.uuid4())
+
         if blocking:
             # SYNC: single final message
-            result = await self.agent.ainvoke({"messages": [("user", user_text)]})
+            config = {
+                "configurable": {
+                    "thread_id": thread_id,  # Use contextId for conversation continuity
+                    "checkpoint_ns": "a2a_conversation",
+                    "checkpoint_id": checkpoint_id  # Use taskId for task-specific state
+                }
+            }
+            inputs = {"messages": [("user", user_text)]}
+            result = await self.agent.ainvoke(inputs, config=config)
             final_text = await self._final_text_from_result(result)
-            await event_queue.enqueue_event(new_agent_text_message(final_text))
+            # Include both contextId and taskId in the response message
+            await event_queue.enqueue_event(new_agent_text_message(final_text, context_id=context_id, task_id=task_id))
             return
 
         # STREAMING: forward assistant chunks as they arrive
-        async for piece in self._stream_langgraph_messages(user_text):
-            await event_queue.enqueue_event(new_agent_text_message(piece))
+        async for piece in self._stream_langgraph_messages(user_text, task_id, context_id):
+            # Include both contextId and taskId in each streaming message
+            await event_queue.enqueue_event(new_agent_text_message(piece, context_id=context_id, task_id=task_id))
         # Returning ends the streaming task; DefaultRequestHandler will finalize.
 
