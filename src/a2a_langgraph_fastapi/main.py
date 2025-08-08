@@ -1,15 +1,18 @@
 import os
 from fastapi import FastAPI
 
-from a2a.server.apps import A2AStarletteApplication
+from a2a.server.apps import A2AFastAPIApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.server.events import InMemoryQueueManager
-from a2a.server.push_notifications import InMemoryPushNotificationConfigStore
+from a2a.server.tasks import InMemoryPushNotificationConfigStore
 
 from .cards import build_echo_card, build_math_card
 from .agents import build_echo_agent, build_math_agent
 from .executor import LangGraphAgentExecutor
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
@@ -27,10 +30,10 @@ def _mount_agent(app: FastAPI, mount_path: str, card_builder, agent_builder) -> 
         agent_executor=executor,
         task_store=InMemoryTaskStore(),
         queue_manager=InMemoryQueueManager(),
-        push_notification_config_store=InMemoryPushNotificationConfigStore(),
+        push_config_store=InMemoryPushNotificationConfigStore(),
     )
 
-    starlette_app = A2AStarletteApplication(agent_card=card, http_handler=handler).build()
+    starlette_app = A2AFastAPIApplication(agent_card=card, http_handler=handler).build()
     app.mount(mount_path, starlette_app)
 
     return f"{card.url}/.well-known/agent-card.json"

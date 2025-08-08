@@ -26,7 +26,7 @@ def build_echo_agent():
     return create_react_agent(
         llm,
         tools=[],
-        state_modifier=SystemMessage(system),
+        prompt=SystemMessage(system),
     )
 
 
@@ -52,5 +52,5 @@ def build_math_agent():
     return create_react_agent(
         llm,
         tools=[sum_numbers],
-        state_modifier=SystemMessage(system),
+        prompt=SystemMessage(system),
     )

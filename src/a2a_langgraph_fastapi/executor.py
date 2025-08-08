@@ -3,6 +3,7 @@ from typing import Any, AsyncIterator, Optional, Union
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.utils import get_message_text, new_agent_text_message
+from a2a.types import TaskState, TaskStatusUpdateEvent
 
 # LangGraph objects are Runnable graphs that expose ainvoke/astream
 # We'll accept anything that implements `ainvoke()` and `astream(..., stream_mode="messages")`.
@@ -43,6 +44,14 @@ class LangGraphAgentExecutor(AgentExecutor):
             return content or str(last)
         except Exception:
             return "No response."
+        
+    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        """
+        The default implementation just marks the task as cancelled.
+        If you keep LangGraph's run_id you can also call graph.interrupt(run_id).
+        """
+        await event_queue.enqueue_event(TaskStatusUpdateEvent(status=TaskState.cancelled, final=True))
+
 
     async def _stream_langgraph_messages(
         self,
@@ -76,10 +85,11 @@ class LangGraphAgentExecutor(AgentExecutor):
             # SYNC: single final message
             result = await self.agent.ainvoke({"messages": [("user", user_text)]})
             final_text = await self._final_text_from_result(result)
-            event_queue.enqueue_event(new_agent_text_message(final_text))
+            await event_queue.enqueue_event(new_agent_text_message(final_text))
             return
 
         # STREAMING: forward assistant chunks as they arrive
         async for piece in self._stream_langgraph_messages(user_text):
-            event_queue.enqueue_event(new_agent_text_message(piece))
+            await event_queue.enqueue_event(new_agent_text_message(piece))
         # Returning ends the streaming task; DefaultRequestHandler will finalize.
+
