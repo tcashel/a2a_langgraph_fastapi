@@ -22,6 +22,49 @@ uv run serve
 # Server at http://localhost:8000
 ```
 
+## Beautiful CLI Testing Interface
+
+The smoke test now features a beautiful CLI interface with rich formatting and interactive options:
+
+```bash
+# Test all agents with all test types
+uv run smoke_test.py
+
+# Test specific agent with specific test
+uv run smoke_test.py --test context --agent math
+
+# Test basic communication only
+uv run smoke_test.py --test basic --agent echo
+
+# Test conversation history
+uv run smoke_test.py --test history --agent math
+
+# Test A2A Protocol conversation flow
+uv run smoke_test.py --test context --agent echo
+```
+
+### **Available Test Types:**
+
+- **`basic`**: Simple communication tests
+- **`history`**: Conversation memory tests  
+- **`context`**: A2A Protocol conversation flow tests
+- **`all`**: Run all test types (default)
+
+### **Available Agents:**
+
+- **`echo`**: Echo Agent (repeats and responds)
+- **`math`**: Math Agent (mathematical reasoning)
+- **`all`**: Test both agents (default)
+
+### **Features:**
+
+- ✅ **Rich formatting** with colors and panels
+- ✅ **Server status checking** with progress indicators
+- ✅ **Conversation continuity** testing
+- ✅ **A2A Protocol compliance** verification
+- ✅ **Error handling** with graceful failures
+- ✅ **Modular test selection** for focused testing
+
 ## A2A ID Mapping and Conversation Continuity
 
 This implementation properly maps A2A Protocol IDs to LangGraph's conversation system for seamless multi-turn conversations.
@@ -31,8 +74,8 @@ This implementation properly maps A2A Protocol IDs to LangGraph's conversation s
 | A2A Protocol | LangGraph Equivalent | Purpose | Persistence |
 |--------------|---------------------|---------|-------------|
 | `contextId` | `thread_id` | **Conversation continuity** | Spans entire conversation |
-| `taskId` | `checkpoint_id` | **Task-specific state** | Individual task lifecycle |
-| `messageId` | N/A | **Unique message identifier** | Single message |
+| `taskId` | `N/A` | **Task-specific state** | Individual task lifecycle |
+| `messageId` | `message_id` | **Unique message identifier** | Single message |
 
 ### **Conversation Flow:**
 

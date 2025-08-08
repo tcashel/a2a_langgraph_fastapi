@@ -1,0 +1,126 @@
+---
+alwaysApply: true
+---
+
+# A2A x LangGraph x FastAPI Project Rules
+
+## Project Overview
+This is an A2A (Agent-to-Agent) Protocol implementation using LangGraph agents served via FastAPI with JSON-RPC endpoints. The project demonstrates conversation continuity and proper A2A Protocol compliance.
+
+## Key Commands
+
+### Development Setup
+```bash
+# Install dependencies
+uv sync
+
+# Start the server (FastAPI with A2A agents)
+uv run serve
+
+# Run the beautiful CLI smoke test
+uv run smoke_test.py
+
+# Run specific tests
+uv run smoke_test.py --test context --agent math
+uv run smoke_test.py --test basic --agent echo
+uv run smoke_test.py --test history --agent math
+```
+
+### Project Structure
+- `src/a2a_langgraph_fastapi/main.py` - FastAPI app with A2A agent mounting
+- `src/a2a_langgraph_fastapi/agents.py` - LangGraph agent definitions (EchoAgent, MathAgent)
+- `src/a2a_langgraph_fastapi/executor.py` - LangGraph to A2A adapter
+- `smoke_test.py` - Beautiful CLI test suite with rich/typer
+- `pyproject.toml` - Project dependencies including a2a-sdk==0.3.0
+
+### A2A Protocol Implementation
+- **contextId** → LangGraph `thread_id` (conversation continuity)
+- **taskId** → LangGraph `checkpoint_id` (task-specific state)
+- **messageId** → Unique message identifier
+- Server generates IDs on first message, client reuses `contextId` for conversation continuity
+
+### Key Features
+- ✅ True conversation history across multiple messages
+- ✅ Server-generated IDs following A2A Protocol
+- ✅ Immutable tasks - each message gets new `taskId`
+- ✅ Persistent conversations - same `contextId` throughout
+- ✅ LangGraph integration with `MemorySaver` for in-memory state
+- ✅ Beautiful CLI interface with rich formatting
+
+### Testing
+The smoke test includes three test types:
+- **basic**: Simple communication tests
+- **history**: Conversation memory tests
+- **context**: A2A Protocol conversation flow tests
+
+### Environment
+- Requires `OPENAI_API_KEY` in environment or `.env` file
+- Uses Python 3.10+ with uv for dependency management
+- FastAPI server runs on http://localhost:8000
+
+### Endpoints
+- Platform index: GET `/.well-known/agents.json`
+- Echo Agent: POST `/agents/echo/a2a/v1/jsonrpc`
+- Math Agent: POST `/agents/math/a2a/v1/jsonrpc`
+- OpenAPI docs: `/agents/echo/docs` and `/agents/math/docs`
+# A2A x LangGraph x FastAPI Project Rules
+
+## Project Overview
+This is an A2A (Agent-to-Agent) Protocol implementation using LangGraph agents served via FastAPI with JSON-RPC endpoints. The project demonstrates conversation continuity and proper A2A Protocol compliance.
+
+## Key Commands
+
+### Development Setup
+```bash
+# Install dependencies
+uv sync
+
+# Start the server (FastAPI with A2A agents)
+uv run serve
+
+# Run the beautiful CLI smoke test
+uv run smoke_test.py
+
+# Run specific tests
+uv run smoke_test.py --test context --agent math
+uv run smoke_test.py --test basic --agent echo
+uv run smoke_test.py --test history --agent math
+```
+
+### Project Structure
+- `src/a2a_langgraph_fastapi/main.py` - FastAPI app with A2A agent mounting
+- `src/a2a_langgraph_fastapi/agents.py` - LangGraph agent definitions (EchoAgent, MathAgent)
+- `src/a2a_langgraph_fastapi/executor.py` - LangGraph to A2A adapter
+- `smoke_test.py` - Beautiful CLI test suite with rich/typer
+- `pyproject.toml` - Project dependencies including a2a-sdk==0.3.0
+
+### A2A Protocol Implementation
+- **contextId** → LangGraph `thread_id` (conversation continuity)
+- **taskId** → LangGraph `checkpoint_id` (task-specific state)
+- **messageId** → Unique message identifier
+- Server generates IDs on first message, client reuses `contextId` for conversation continuity
+
+### Key Features
+- ✅ True conversation history across multiple messages
+- ✅ Server-generated IDs following A2A Protocol
+- ✅ Immutable tasks - each message gets new `taskId`
+- ✅ Persistent conversations - same `contextId` throughout
+- ✅ LangGraph integration with `MemorySaver` for in-memory state
+- ✅ Beautiful CLI interface with rich formatting
+
+### Testing
+The smoke test includes three test types:
+- **basic**: Simple communication tests
+- **history**: Conversation memory tests
+- **context**: A2A Protocol conversation flow tests
+
+### Environment
+- Requires `OPENAI_API_KEY` in environment or `.env` file
+- Uses Python 3.10+ with uv for dependency management
+- FastAPI server runs on http://localhost:8000
+
+### Endpoints
+- Platform index: GET `/.well-known/agents.json`
+- Echo Agent: POST `/agents/echo/a2a/v1/jsonrpc`
+- Math Agent: POST `/agents/math/a2a/v1/jsonrpc`
+- OpenAPI docs: `/agents/echo/docs` and `/agents/math/docs`

@@ -1,13 +1,22 @@
+#!/usr/bin/env python3
 """
-Minimal Python SDK client that:
-  1) Resolves cards for /agents/echo and /agents/math
-  2) Runs sync and streaming tests for both
-  3) Demonstrates multi-turn conversations
+A2A x LangGraph x FastAPI Smoke Test
+
+A beautiful CLI interface for testing A2A agents with conversation continuity.
 """
 
 import asyncio
 import httpx
 import uuid
+from typing import Optional
+
+import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Confirm
+from rich.text import Text
 
 from a2a.client import ClientFactory, A2ACardResolver, ClientConfig
 from a2a.types import MessageSendParams, MessageSendConfiguration, Message, Role, Part, TextPart, AgentCard
@@ -15,6 +24,11 @@ from a2a.client import create_text_message_object
 from a2a.utils import new_task, new_agent_text_message
 
 
+# Initialize Typer app and Rich console
+app = typer.Typer(help="A2A x LangGraph x FastAPI Smoke Test")
+console = Console()
+
+# Configuration
 BASE = "http://localhost:8000"
 ECHO = f"{BASE}/agents/echo"
 MATH = f"{BASE}/agents/math"
@@ -33,11 +47,11 @@ def create_send_message_payload(
         },
     }
 
-    if task_id:
-        payload['message']['taskId'] = task_id
-
     if context_id:
         payload['message']['contextId'] = context_id
+
+    if task_id:
+        payload['message']['taskId'] = task_id
     
     return payload
 
@@ -104,11 +118,9 @@ class A2ASimpleClient:
                     contextId=context_id,  # Server-generated contextId for conversation continuity
                     # taskId omitted - tasks are immutable once completed
                 )
-                print(f"DEBUG: Using server-generated context_id={context_id} for conversation continuity")
             else:
                 # First message: No contextId or taskId (server will generate them)
                 message_obj = create_text_message_object(content=message)
-                print(f"DEBUG: First message - server will generate contextId and taskId")
 
             # Send the message and collect responses
             responses = []
@@ -119,26 +131,18 @@ class A2ASimpleClient:
             if responses and len(responses) > 0:
                 message = responses[0]  # First response is a Message object
                 
-                # Debug: Print the full response structure
-                print(f"DEBUG: Response type: {type(message)}")
-                print(f"DEBUG: Response: {message}")
-                
                 # Extract server-generated contextId and taskId for conversation continuity
                 if use_conversation:
                     # Server generates contextId and taskId in first response
                     if hasattr(message, 'contextId') and message.contextId:
                         self._conversation_context_ids[agent_url] = message.contextId
-                        print(f"DEBUG: Server generated contextId: {message.contextId}")
                     elif hasattr(message, 'context_id') and message.context_id:
                         self._conversation_context_ids[agent_url] = message.context_id
-                        print(f"DEBUG: Server generated context_id: {message.context_id}")
                     
                     if hasattr(message, 'taskId') and message.taskId:
                         self._conversation_task_ids[agent_url] = message.taskId
-                        print(f"DEBUG: Server generated taskId: {message.taskId}")
                     elif hasattr(message, 'task_id') and message.task_id:
                         self._conversation_task_ids[agent_url] = message.task_id
-                        print(f"DEBUG: Server generated task_id: {message.task_id}")
                 
                 # Extract text from the message parts
                 try:
@@ -168,106 +172,196 @@ class A2ASimpleClient:
         return self._conversation_context_ids.get(agent_url)
 
 
-async def run_simple_client_test(agent_url: str):
-    """Test using the simple A2A client pattern from the quickstart notebook"""
+async def test_basic_communication(agent_url: str, agent_name: str):
+    """Test basic communication with an agent."""
     client = A2ASimpleClient()
     
-    print(f"\n=== SIMPLE A2A CLIENT TEST @ {agent_url} ===")
-    print("Testing using the proper A2A client pattern from the quickstart notebook.")
-    print()
+    console.print(Panel(f"[bold blue]Testing Basic Communication: {agent_name}[/bold blue]"))
     
     # Test basic message
-    print("User: Hello! What's your name?")
+    console.print(f"[yellow]User:[/yellow] Hello! What's your name?")
     response1 = await client.create_task(agent_url, "Hello! What's your name?")
-    print(f"Agent: {response1}")
+    console.print(f"[green]{agent_name}:[/green] {response1}")
     
     # Test follow-up message
-    print("\nUser: Can you help me with math?")
+    console.print(f"\n[yellow]User:[/yellow] Can you help me with math?")
     response2 = await client.create_task(agent_url, "Can you help me with math?")
-    print(f"Agent: {response2}")
+    console.print(f"[green]{agent_name}:[/green] {response2}")
     
     # Test math question
-    print("\nUser: What's 15 + 25?")
+    console.print(f"\n[yellow]User:[/yellow] What's 15 + 25?")
     response3 = await client.create_task(agent_url, "What's 15 + 25?")
-    print(f"Agent: {response3}")
+    console.print(f"[green]{agent_name}:[/green] {response3}")
     
     # Test another math question
-    print("\nUser: What's 100 - 30?")
+    console.print(f"\n[yellow]User:[/yellow] What's 100 - 30?")
     response4 = await client.create_task(agent_url, "What's 100 - 30?")
-    print(f"Agent: {response4}")
+    console.print(f"[green]{agent_name}:[/green] {response4}")
 
 
-async def run_conversation_history_simple_test(agent_url: str):
-    """Test conversation history using the simple client pattern"""
+async def test_conversation_history(agent_url: str, agent_name: str):
+    """Test conversation history by telling the agent information and asking it to remember later."""
     client = A2ASimpleClient()
     
-    print(f"\n=== CONVERSATION HISTORY SIMPLE TEST @ {agent_url} ===")
-    print("Testing conversation history using the simple client pattern.")
-    print()
+    console.print(Panel(f"[bold blue]Testing Conversation History: {agent_name}[/bold blue]"))
+    console.print("[dim]Testing if the agent can remember information shared earlier in the conversation.[/dim]")
     
     # First message - tell the agent your name
-    print("User: My name is Bob.")
+    console.print(f"\n[yellow]User:[/yellow] My name is Bob.")
     response1 = await client.create_task(agent_url, "My name is Bob.")
-    print(f"Agent: {response1}")
+    console.print(f"[green]{agent_name}:[/green] {response1}")
     
     # Second message - ask the agent to remember your name
-    print("\nUser: What's my name?")
+    console.print(f"\n[yellow]User:[/yellow] What's my name?")
     response2 = await client.create_task(agent_url, "What's my name?")
-    print(f"Agent: {response2}")
+    console.print(f"[green]{agent_name}:[/green] {response2}")
     
     # Third message - tell the agent something else
-    print("\nUser: I like pizza.")
+    console.print(f"\n[yellow]User:[/yellow] I like pizza.")
     response3 = await client.create_task(agent_url, "I like pizza.")
-    print(f"Agent: {response3}")
+    console.print(f"[green]{agent_name}:[/green] {response3}")
     
     # Fourth message - ask about both pieces of information
-    print("\nUser: What's my name and what do I like?")
+    console.print(f"\n[yellow]User:[/yellow] What's my name and what do I like?")
     response4 = await client.create_task(agent_url, "What's my name and what do I like?")
-    print(f"Agent: {response4}")
+    console.print(f"[green]{agent_name}:[/green] {response4}")
 
 
-async def run_conversation_with_task_id_test(agent_url: str):
-    """Test conversation history using server-generated context ID for continuity"""
+async def test_conversation_with_context_id(agent_url: str, agent_name: str):
+    """Test conversation history using server-generated context ID for continuity."""
     client = A2ASimpleClient()
     
-    print(f"\n=== CONVERSATION WITH SERVER-GENERATED CONTEXT ID TEST @ {agent_url} ===")
-    print("Testing conversation history using server-generated context ID for continuity.")
-    print("Following A2A Protocol: First message has no IDs, server generates them.")
-    print()
+    console.print(Panel(f"[bold blue]Testing Conversation with Context ID: {agent_name}[/bold blue]"))
+    console.print("[dim]Following A2A Protocol: First message has no IDs, server generates them.[/dim]")
     
     # First message - tell the agent your name (server generates contextId and taskId)
-    print("User: My name is Bob.")
+    console.print(f"\n[yellow]User:[/yellow] My name is Bob.")
     response1 = await client.create_task(agent_url, "My name is Bob.", use_conversation=True)
-    print(f"Agent: {response1}")
-    print(f"Server-generated Context ID: {client.get_current_context_id(agent_url)}")
-    print(f"Server-generated Task ID: {client.get_current_task_id(agent_url)}")
+    console.print(f"[green]{agent_name}:[/green] {response1}")
+    console.print(f"[dim]Context ID: {client.get_current_context_id(agent_url)}[/dim]")
+    console.print(f"[dim]Task ID: {client.get_current_task_id(agent_url)}[/dim]")
     
     # Second message - ask the agent to remember your name (uses server-generated contextId)
-    print("\nUser: What's my name?")
+    console.print(f"\n[yellow]User:[/yellow] What's my name?")
     response2 = await client.create_task(agent_url, "What's my name?", use_conversation=True)
-    print(f"Agent: {response2}")
-    print(f"Using server-generated Context ID: {client.get_current_context_id(agent_url)}")
-    print(f"Using server-generated Task ID: {client.get_current_task_id(agent_url)}")
+    console.print(f"[green]{agent_name}:[/green] {response2}")
+    console.print(f"[dim]Using Context ID: {client.get_current_context_id(agent_url)}[/dim]")
     
     # Third message - tell the agent something else (uses server-generated contextId)
-    print("\nUser: I like pizza.")
+    console.print(f"\n[yellow]User:[/yellow] I like pizza.")
     response3 = await client.create_task(agent_url, "I like pizza.", use_conversation=True)
-    print(f"Agent: {response3}")
-    print(f"Using server-generated Context ID: {client.get_current_context_id(agent_url)}")
-    print(f"Using server-generated Task ID: {client.get_current_task_id(agent_url)}")
+    console.print(f"[green]{agent_name}:[/green] {response3}")
+    console.print(f"[dim]Using Context ID: {client.get_current_context_id(agent_url)}[/dim]")
     
     # Fourth message - ask about both pieces of information (uses server-generated contextId)
-    print("\nUser: What's my name and what do I like?")
+    console.print(f"\n[yellow]User:[/yellow] What's my name and what do I like?")
     response4 = await client.create_task(agent_url, "What's my name and what do I like?", use_conversation=True)
-    print(f"Agent: {response4}")
-    print(f"Using server-generated Context ID: {client.get_current_context_id(agent_url)}")
-    print(f"Using server-generated Task ID: {client.get_current_task_id(agent_url)}")
+    console.print(f"[green]{agent_name}:[/green] {response4}")
+    console.print(f"[dim]Using Context ID: {client.get_current_context_id(agent_url)}[/dim]")
 
 
-async def main():
-    # Test conversation with task ID (debug version)
-    await run_conversation_with_task_id_test(MATH)
+async def check_server_status():
+    """Check if the server is running."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{BASE}/.well-known/agents.json")
+            if response.status_code == 200:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+@app.command()
+def main(
+    test_type: str = typer.Option(
+        "all",
+        "--test",
+        "-t",
+        help="Type of test to run: basic, history, context, or all"
+    ),
+    agent: str = typer.Option(
+        "all",
+        "--agent",
+        "-a", 
+        help="Agent to test: echo, math, or all"
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output"
+    )
+):
+    """A2A x LangGraph x FastAPI Smoke Test - Beautiful CLI Interface"""
+    
+    console.print(Panel.fit(
+        "[bold blue]A2A x LangGraph x FastAPI[/bold blue]\n[dim]Smoke Test Suite[/dim]",
+        border_style="blue"
+    ))
+    
+    # Check server status
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Checking server status...", total=None)
+        server_running = asyncio.run(check_server_status())
+    
+    if not server_running:
+        console.print("[red]❌ Server is not running![/red]")
+        console.print("Please start the server with: [bold]uv run serve[/bold]")
+        raise typer.Exit(1)
+    
+    console.print("[green]✅ Server is running![/green]\n")
+    
+    # Define test functions
+    tests = {
+        "basic": test_basic_communication,
+        "history": test_conversation_history, 
+        "context": test_conversation_with_context_id
+    }
+    
+    agents = {
+        "echo": (ECHO, "Echo Agent"),
+        "math": (MATH, "Math Agent")
+    }
+    
+    # Determine which tests to run
+    if test_type == "all":
+        tests_to_run = list(tests.keys())
+    else:
+        tests_to_run = [test_type]
+    
+    # Determine which agents to test
+    if agent == "all":
+        agents_to_test = list(agents.keys())
+    else:
+        agents_to_test = [agent]
+    
+    # Run tests
+    for test_name in tests_to_run:
+        if test_name not in tests:
+            console.print(f"[red]❌ Unknown test type: {test_name}[/red]")
+            continue
+            
+        for agent_name in agents_to_test:
+            if agent_name not in agents:
+                console.print(f"[red]❌ Unknown agent: {agent_name}[/red]")
+                continue
+                
+            agent_url, agent_display_name = agents[agent_name]
+            
+            try:
+                asyncio.run(tests[test_name](agent_url, agent_display_name))
+                console.print("\n" + "="*80 + "\n")
+            except Exception as e:
+                console.print(f"[red]❌ Error testing {agent_display_name}: {str(e)}[/red]")
+    
+    console.print(Panel("[bold green]✅ All tests completed![/bold green]", border_style="green"))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    app()
