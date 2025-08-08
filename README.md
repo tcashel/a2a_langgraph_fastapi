@@ -20,7 +20,7 @@ export OPENAI_API_KEY=sk-...
 # 3) Run the server
 uv run serve
 # Server at http://localhost:8000
-
+```
 ## Endpoints
 Platform index (both agents): GET /.well-known/agents.json
 
@@ -35,3 +35,45 @@ Math Agent:
 Card: GET /agents/math/.well-known/agent-card.json
 
 JSON-RPC: POST /agents/math/a2a/v1/jsonrpc
+
+## Example curls
+
+### sync
+
+```bash
+curl -s http://localhost:8000/agents/echo/a2a/v1/jsonrpc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":"1",
+    "method":"message/send",
+    "params":{
+      "message":{
+        "role":"user",
+        "parts":[{"kind":"text","text":"Say hello to A2A!"}]
+      },
+      "configuration":{"blocking":true}
+    }
+  }' | jq
+```
+
+### streaming
+
+```bash
+# Server-Sent Events (A2A streaming). Use a tool like curl to watch SSE lines.
+curl -N http://localhost:8000/agents/echo/a2a/v1/jsonrpc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":"2",
+    "method":"message/stream",
+    "params":{
+      "message":{
+        "role":"user",
+        "parts":[{"kind":"text","text":"Stream hello, please."}]
+      },
+      "configuration":{"blocking":false}
+    }
+  }'
+
+```
